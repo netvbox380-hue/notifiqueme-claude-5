@@ -50,6 +50,7 @@ export default function SchedulePage() {
   const [loading, setLoading] = useState(false);
   const [groups, setGroups] = useState<any[]>([]);
   const [timelineScheduleId, setTimelineScheduleId] = useState<number | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
 
 
   const [ownerTenantId, setOwnerTenantId] = useState<string>("");
@@ -387,6 +388,20 @@ const groupsListOwner = trpc.superadmin.listGroupsByTenant.useQuery(
     if (names.length === 1) return { label: `users grupo ${names[0]}`, detail: "" };
     return { label: `Grupos (${names.length})`, detail: (head ? head + tail : "") };
   };
+
+  const filteredSchedules = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return schedules;
+    return schedules.filter((s: any) => {
+      const target = formatTargetSummary(s);
+      const hay = [s?.title, s?.content, target.label, target.detail]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [schedules, searchTerm, userNameById, groupNameById]);
+
 return (
     <DashboardLayout>
       <div className="p-4 sm:p-8">
@@ -654,6 +669,15 @@ return (
           </Dialog>
         </div>
 
+        <div className="mb-5">
+          <Input
+            placeholder="Buscar agendamento por título, conteúdo ou destinatário..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="max-w-xl"
+          />
+        </div>
+
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5 mb-5">
           <div className="rounded-2xl border border-border bg-card p-4">
             <div className="text-xs text-muted-foreground">Total</div>
@@ -678,12 +702,14 @@ return (
         </div>
 
         <div className="grid gap-4">
-          {schedules.length === 0 ? (
+          {filteredSchedules.length === 0 ? (
             <div className="brutalist-card p-12 text-center text-muted-foreground">
-              Nenhum agendamento programado.
+              {schedules.length === 0
+                ? "Nenhum agendamento programado."
+                : "Nenhum agendamento encontrado para a busca atual."}
             </div>
           ) : (
-            schedules.sort((a,b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime()).map(s => {
+            [...filteredSchedules].sort((a,b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime()).map(s => {
               const run = formatRunStatus(s);
               const target = formatTargetSummary(s);
               const hasRun = Boolean(s.lastRunAt || s.lastRunStatus || s.lastRunMessage);
