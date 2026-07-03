@@ -369,10 +369,59 @@ export default function UserNotifications() {
     inboxCountQuery.data?.count ??
     items.filter((item: any) => !item.isRead).length;
 
+  // 🧭 Snapshot estável da aba "Não lidas": a leitura automática (ou o toque
+  // manual) marca a mensagem como lida em segundo plano, mas ela NÃO some
+  // da lista no meio da rolagem — isso empurra os itens seguintes e causa
+  // aquele efeito de "cascata sumindo" ao rolar rápido. O item continua na
+  // lista (só troca o visual de não-lida para lida) até o usuário sair da
+  // aba "Não lidas" e voltar, que é o sinal explícito de "quero ver o que
+  // está pendente agora".
+  const stableUnreadIdsRef = useRef<Set<number>>(new Set());
+  const prevFilterRef = useRef<string | null>(null);
+  const [stableVersion, setStableVersion] = useState(0);
+
+  // Recalcula o snapshot do zero sempre que o usuário (re)entra na aba "Não lidas".
+  useEffect(() => {
+    if (filter === "unread" && prevFilterRef.current !== "unread") {
+      stableUnreadIdsRef.current = new Set(
+        items.filter((it: any) => !it.isRead).map((it: any) => Number(it?.deliveryId))
+      );
+      setStableVersion((v) => v + 1);
+    }
+    prevFilterRef.current = filter;
+  }, [filter, items]);
+
+  // Mantém o snapshot em dia: adiciona mensagens novas que chegaram não lidas
+  // e remove apenas as que deixaram de existir (ex: apagadas) — nunca remove
+  // um item só porque ele foi marcado como lido durante a sessão atual.
+  useEffect(() => {
+    let changed = false;
+    const currentIds = new Set(items.map((it: any) => Number(it?.deliveryId)));
+
+    for (const it of items) {
+      const id = Number(it?.deliveryId);
+      if (!it.isRead && !stableUnreadIdsRef.current.has(id)) {
+        stableUnreadIdsRef.current.add(id);
+        changed = true;
+      }
+    }
+
+    for (const id of Array.from(stableUnreadIdsRef.current)) {
+      if (!currentIds.has(id)) {
+        stableUnreadIdsRef.current.delete(id);
+        changed = true;
+      }
+    }
+
+    if (changed) setStableVersion((v) => v + 1);
+  }, [items]);
+
   const visibleItems = useMemo(() => {
     if (filter === "all") return items;
-    return items.filter((item: any) => !item.isRead);
-  }, [items, filter]);
+    return items.filter((item: any) => stableUnreadIdsRef.current.has(Number(item?.deliveryId)));
+    // stableVersion força recomputo quando o snapshot muda (ref não é reativo por si só)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, filter, stableVersion]);
 
   const scrollToTop = useCallback(() => {
     const el = containerRef.current;
