@@ -240,6 +240,92 @@ export default function UserNotifications() {
     onSuccess: invalidateInbox,
   });
 
+  // ✅ Leitura automática: a mensagem já mostra o conteúdo inteiro no card
+  // (não existe "expandir"), então exigir toque manual é redundante.
+  // Marcamos como lida quando o card fica visível na tela por um tempo
+  // curto (evita marcar algo que só passou rápido durante um scroll).
+  const itemsRef = useRef<any[]>([]);
+
+  const markAsReadRef = useRef(markAsRead);
+  markAsReadRef.current = markAsRead;
+
+  const visibilityTimersRef = useRef<Map<number, ReturnType<typeof setTimeout>>>(new Map());
+  const itemNodesRef = useRef<Map<number, HTMLDivElement>>(new Map());
+  const pendingAutoReadRef = useRef<Set<number>>(new Set());
+
+  const handleAutoRead = useCallback(async (deliveryId: number) => {
+    const target = itemsRef.current.find((it: any) => Number(it?.deliveryId) === deliveryId);
+    if (!target || target.isRead) return;
+    if (pendingAutoReadRef.current.has(deliveryId)) return;
+
+    pendingAutoReadRef.current.add(deliveryId);
+    try {
+      await markAsReadRef.current.mutateAsync({ deliveryId });
+    } catch {
+      // Silencioso: a mensagem permanece "não lida" e será marcada
+      // automaticamente na próxima vez que ficar visível na tela.
+    } finally {
+      pendingAutoReadRef.current.delete(deliveryId);
+    }
+  }, []);
+
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  if (!observerRef.current && typeof IntersectionObserver !== "undefined") {
+    observerRef.current = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const deliveryId = Number((entry.target as HTMLElement).dataset.deliveryId || 0);
+          if (!deliveryId) return;
+
+          if (entry.isIntersecting && entry.intersectionRatio >= 0.6) {
+            if (visibilityTimersRef.current.has(deliveryId)) return;
+            const timer = setTimeout(() => {
+              visibilityTimersRef.current.delete(deliveryId);
+              void handleAutoRead(deliveryId);
+            }, 700);
+            visibilityTimersRef.current.set(deliveryId, timer);
+          } else {
+            const timer = visibilityTimersRef.current.get(deliveryId);
+            if (timer) {
+              clearTimeout(timer);
+              visibilityTimersRef.current.delete(deliveryId);
+            }
+          }
+        });
+      },
+      { threshold: [0, 0.6, 1] }
+    );
+  }
+
+  useEffect(() => {
+    return () => {
+      observerRef.current?.disconnect();
+      visibilityTimersRef.current.forEach((timer) => clearTimeout(timer));
+      visibilityTimersRef.current.clear();
+    };
+  }, []);
+
+  const registerMessageNode = useCallback((el: HTMLDivElement | null, deliveryId: number) => {
+    const observer = observerRef.current;
+    const prevNode = itemNodesRef.current.get(deliveryId);
+
+    if (prevNode && prevNode !== el && observer) {
+      observer.unobserve(prevNode);
+    }
+
+    if (el) {
+      itemNodesRef.current.set(deliveryId, el);
+      observer?.observe(el);
+    } else {
+      itemNodesRef.current.delete(deliveryId);
+      const timer = visibilityTimersRef.current.get(deliveryId);
+      if (timer) {
+        clearTimeout(timer);
+        visibilityTimersRef.current.delete(deliveryId);
+      }
+    }
+  }, []);
+
   const markAllAsRead = trpc.notifications.markAllAsRead.useMutation({
     onSuccess: async () => {
       await invalidateInbox();
@@ -277,6 +363,7 @@ export default function UserNotifications() {
   );
 
   const items = useMemo(() => inbox.data?.data ?? [], [inbox.data]);
+  itemsRef.current = items;
 
   const unreadCount =
     inboxCountQuery.data?.count ??
@@ -633,6 +720,8 @@ export default function UserNotifications() {
                 <div key={message.deliveryId} className="flex justify-start">
                   <div className="w-full">
                     <div
+                      ref={!message.isRead ? (el) => registerMessageNode(el, Number(message.deliveryId)) : undefined}
+                      data-delivery-id={message.deliveryId}
                       className={
                         "w-full rounded-2xl px-4 py-4 border shadow-sm transition cursor-pointer " +
                         (!message.isRead
