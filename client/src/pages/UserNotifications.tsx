@@ -39,6 +39,7 @@ import {
   Wifi,
 } from "lucide-react";
 import InstallAppButton from "@/components/InstallAppButton";
+import PushActivationBanner from "@/components/PushActivationBanner";
 import { primeNotificationAudio, playNewMessageSound } from "@/lib/notifySound";
 import { linkifyText } from "@/lib/linkify";
 
@@ -676,6 +677,8 @@ export default function UserNotifications() {
             </Button>
           </div>
         </div>
+
+        <PushActivationBanner onAction={() => setPrefsOpen(true)} />
 
         <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b bg-muted/40 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
