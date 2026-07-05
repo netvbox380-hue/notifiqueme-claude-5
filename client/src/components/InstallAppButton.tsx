@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-import { getOrCreatePushSubscription } from "@/lib/push";
+import { getOrCreatePushSubscription, isStandaloneMode } from "@/lib/push";
 
 type BeforeInstallPromptEvent = Event & {
   prompt: () => Promise<void>;
@@ -25,18 +25,8 @@ type BeforeInstallPromptEvent = Event & {
 let autoPushSessionAttempted = false;
 let autoPushSessionInFlight = false;
 
-function isStandaloneMode() {
-  // iOS Safari standalone
-  // @ts-ignore
-  const iosStandalone = typeof window !== "undefined" && (navigator as any).standalone;
-  // Chrome/Android/desktop installed PWA
-  const mqStandalone =
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia("(display-mode: standalone)").matches;
-
-  return Boolean(iosStandalone || mqStandalone);
-}
+// ✅ isStandaloneMode agora vive em @/lib/push (fonte única, compartilhada
+// com o hook usePushStatus usado no banner de ativação).
 
 export default function InstallAppButton() {
   const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(null);
