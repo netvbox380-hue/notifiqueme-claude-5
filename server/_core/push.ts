@@ -72,6 +72,25 @@ export async function sendPushToUsers(params: {
     for (const r of rows) byUser.set(Number(r.userId), Number(r.c) || 0);
   } catch {}
 
+  // ✅ Descobre o deliveryId de cada usuário para ESTA notificação específica.
+  // Usado pelo app pra fechar a notificação certa da bandeja quando o usuário
+  // marcar como lida (badge nativo fica coerente em qualquer fabricante).
+  const deliveryIdByUser = new Map<number, number>();
+  try {
+    const deliveryRows = await db
+      .select({ id: deliveries.id, userId: deliveries.userId })
+      .from(deliveries)
+      .where(
+        and(
+          eq(deliveries.tenantId, params.tenantId),
+          eq(deliveries.notificationId, params.notificationId),
+          inArray(deliveries.userId, params.userIds)
+        )
+      );
+    const rows: any[] = Array.isArray(deliveryRows) ? (deliveryRows as any) : ((deliveryRows as any)?.rows || []);
+    for (const r of rows) deliveryIdByUser.set(Number(r.userId), Number(r.id));
+  } catch {}
+
   const basePayload = {
     title: params.title,
     body: params.content,
@@ -117,7 +136,11 @@ export async function sendPushToUsers(params: {
                 auth: s.auth,
               },
             } as any,
-            JSON.stringify({ ...basePayload, badgeCount: byUser.get(userId) || 0 })
+            JSON.stringify({
+              ...basePayload,
+              badgeCount: byUser.get(userId) || 0,
+              deliveryId: deliveryIdByUser.get(userId) ?? null,
+            })
           );
         } catch (err) {
           if (shouldPruneSubscription(err)) {
