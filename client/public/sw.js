@@ -78,6 +78,36 @@ self.addEventListener("message", (event) => {
 
   // ✅ Preferências para o SW (vibração/som)
   if (data.type === "SET_PUSH_PREFS") void writePrefs(data.prefs || {});
+
+  // ✅ Badge nativo (Android): remove da bandeja a(s) notificação(ões) já lida(s)
+  // no app, pra que o badge derivado de notificações ativas fique sempre
+  // coerente com o que o usuário já viu — funciona em qualquer fabricante,
+  // sem depender de API proprietária nenhuma.
+  if (data.type === "CLOSE_NOTIFICATIONS" && Array.isArray(data.deliveryIds)) {
+    const ids = data.deliveryIds.map((id) => String(id));
+    event.waitUntil(
+      (async () => {
+        try {
+          const notifs = await self.registration.getNotifications();
+          notifs
+            .filter((n) => ids.includes(String(n.tag)))
+            .forEach((n) => n.close());
+        } catch {}
+      })()
+    );
+  }
+
+  // ✅ "Marcar todas como lidas": limpa a bandeja inteira do app.
+  if (data.type === "CLOSE_ALL_NOTIFICATIONS") {
+    event.waitUntil(
+      (async () => {
+        try {
+          const notifs = await self.registration.getNotifications();
+          notifs.forEach((n) => n.close());
+        } catch {}
+      })()
+    );
+  }
 });
 
 /* ============================
@@ -163,7 +193,11 @@ self.addEventListener("push", (event) => {
         body,
         icon: "/icon-192.png",
         badge: "/icon-192.png",
-        data: { url },
+        // ✅ tag = deliveryId: permite fechar essa notificação específica da
+        // bandeja quando o usuário marcar como lida no app (badge nativo do
+        // Android fica coerente, sem depender de fabricante).
+        tag: payload.deliveryId != null ? String(payload.deliveryId) : undefined,
+        data: { url, deliveryId: payload.deliveryId ?? null },
         // vibração é best-effort e respeita configurações do sistema
         vibrate: prefs.vibrate ? [80, 40, 80] : undefined,
       });
