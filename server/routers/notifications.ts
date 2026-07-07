@@ -234,16 +234,23 @@ async function sendPushToUsersWithBadge(
   await Promise.all(
     subs.map(async (s: any) => {
       const badgeCount = unreadMap.get(Number(s.userId)) ?? 0;
+      const deliveryId = deliveryIdByUser.get(Number(s.userId)) ?? null;
 
       const payload = {
         title: basePayload.title,
         body: basePayload.body,
         url: basePayload.url,
         badgeCount,
-        deliveryId: deliveryIdByUser.get(Number(s.userId)) ?? null,
+        deliveryId,
       };
 
       const json = JSON.stringify(payload);
+
+      // 🔎 Diagnóstico temporário: confirma exatamente o que foi enviado
+      // pra cada usuário (útil pra comparar com o que o sw.js recebe).
+      console.log(
+        `[PUSH] enviando userId=${s.userId} deliveryId=${deliveryId} badgeCount=${badgeCount}`
+      );
 
       try {
         await webpush.sendNotification(
@@ -251,10 +258,16 @@ async function sendPushToUsersWithBadge(
             endpoint: s.endpoint,
             keys: { p256dh: s.p256dh, auth: s.auth },
           } as any,
-          json
+          json,
+          {
+            // ✅ "high": pede entrega imediata ao FCM, sem enfileirar/agrupar
+            // sob Doze/economia de energia ou em rajadas rápidas de push.
+            urgency: "high",
+            TTL: 86400,
+          }
         );
-      } catch {
-        // ok
+      } catch (err) {
+        console.log(`[PUSH] falhou userId=${s.userId} deliveryId=${deliveryId}:`, err);
       }
     })
   );
