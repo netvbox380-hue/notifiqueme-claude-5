@@ -127,6 +127,15 @@ export async function sendPushToUsers(params: {
         if (!s.endpoint || !s.p256dh || !s.auth) {
           throw new Error("[PUSH] subscription inválida (campos ausentes)");
         }
+        const deliveryId = deliveryIdByUser.get(userId) ?? null;
+        const badgeCount = byUser.get(userId) || 0;
+
+        // 🔎 Diagnóstico temporário: confirma exatamente o que foi enviado
+        // pra cada usuário (útil pra comparar com o que o sw.js recebe).
+        console.log(
+          `[PUSH] enviando userId=${userId} deliveryId=${deliveryId} badgeCount=${badgeCount}`
+        );
+
         try {
           return await webpush.sendNotification(
             {
@@ -138,9 +147,18 @@ export async function sendPushToUsers(params: {
             } as any,
             JSON.stringify({
               ...basePayload,
-              badgeCount: byUser.get(userId) || 0,
-              deliveryId: deliveryIdByUser.get(userId) ?? null,
-            })
+              badgeCount,
+              deliveryId,
+            }),
+            {
+              // ✅ "high": pede entrega imediata ao FCM, sem enfileirar/agrupar
+              // sob Doze/economia de energia ou quando várias mensagens saem
+              // em sequência rápida.
+              urgency: "high",
+              // 24h: tempo suficiente pra chegar quando o aparelho reconectar,
+              // sem acumular indefinidamente mensagens muito antigas.
+              TTL: 86400,
+            }
           );
         } catch (err) {
           if (shouldPruneSubscription(err)) {
