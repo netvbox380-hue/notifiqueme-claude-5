@@ -238,7 +238,18 @@ export default function UserNotifications() {
   }, []);
 
   const markAsRead = trpc.notifications.markAsRead.useMutation({
-    onSuccess: invalidateInbox,
+    onSuccess: async (_data, variables) => {
+      await invalidateInbox();
+      // ✅ Badge nativo: remove da bandeja do Android a notificação já lida,
+      // pra que o badge (dot/contador do launcher) fique sempre coerente,
+      // em qualquer fabricante — funciona igual no TWA e no WebAPK do Chrome.
+      try {
+        navigator.serviceWorker?.controller?.postMessage({
+          type: "CLOSE_NOTIFICATIONS",
+          deliveryIds: [variables?.deliveryId],
+        });
+      } catch {}
+    },
   });
 
   // ✅ Leitura automática: a mensagem já mostra o conteúdo inteiro no card
@@ -330,6 +341,9 @@ export default function UserNotifications() {
   const markAllAsRead = trpc.notifications.markAllAsRead.useMutation({
     onSuccess: async () => {
       await invalidateInbox();
+      try {
+        navigator.serviceWorker?.controller?.postMessage({ type: "CLOSE_ALL_NOTIFICATIONS" });
+      } catch {}
       toast.success("Todas as mensagens foram marcadas como lidas.");
     },
   });
