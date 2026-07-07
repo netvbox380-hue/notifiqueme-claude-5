@@ -187,7 +187,7 @@ async function attachFilesToNotifications<
  */
 async function sendPushToUsersWithBadge(
   userIds: number[],
-  basePayload: { title: string; body: string; url: string }
+  basePayload: { title: string; body: string; url: string; notificationId?: number }
 ) {
   if (!ensureVapidConfigured()) return;
 
@@ -212,13 +212,35 @@ async function sendPushToUsersWithBadge(
   const unreadMap = new Map<number, number>();
   for (const r of unreadRows) unreadMap.set(Number(r.userId), Number(r.count ?? 0));
 
+  // ✅ Descobre o deliveryId de cada usuário para ESTA notificação específica.
+  // Usado pelo app pra fechar a notificação certa da bandeja quando o usuário
+  // marcar como lida (badge nativo fica coerente em qualquer fabricante).
+  const deliveryIdByUser = new Map<number, number>();
+  if (basePayload.notificationId) {
+    try {
+      const deliveryRows = await db
+        .select({ id: deliveries.id, userId: deliveries.userId })
+        .from(deliveries)
+        .where(
+          and(
+            eq(deliveries.notificationId, basePayload.notificationId),
+            inArray(deliveries.userId, userIds)
+          )
+        );
+      for (const r of deliveryRows) deliveryIdByUser.set(Number(r.userId), Number(r.id));
+    } catch {}
+  }
+
   await Promise.all(
     subs.map(async (s: any) => {
       const badgeCount = unreadMap.get(Number(s.userId)) ?? 0;
 
       const payload = {
-        ...basePayload,
+        title: basePayload.title,
+        body: basePayload.body,
+        url: basePayload.url,
         badgeCount,
+        deliveryId: deliveryIdByUser.get(Number(s.userId)) ?? null,
       };
 
       const json = JSON.stringify(payload);
@@ -992,6 +1014,7 @@ export const notificationsRouter = router({
         title: "Nova mensagem",
         body: input.title,
         url: "/my-notifications",
+        notificationId,
       });
 
       return { success: true, notificationId, queued: userIds.length };
