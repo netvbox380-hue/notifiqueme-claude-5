@@ -152,6 +152,15 @@ self.addEventListener("push", (event) => {
     }
   })();
 
+  // 🔎 Diagnóstico temporário: confirma quantos eventos "push" o navegador
+  // realmente entrega ao SW (comparar com os logs "[PUSH] enviando" do
+  // servidor pra saber se é problema de entrega ou de outra coisa).
+  console.log("[SW] push recebido:", {
+    deliveryId: payload.deliveryId,
+    badgeCount: payload.badgeCount,
+    ts: Date.now(),
+  });
+
   const title = payload.title || "Notifique-me";
   const body = payload.body || payload.content || "Você recebeu uma nova mensagem";
   const url = payload.url || "/my-notifications";
