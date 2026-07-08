@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
+import SimpleRichTextEditor from "@/components/SimpleRichTextEditor";
 import {
   Dialog,
   DialogBody,
@@ -121,6 +123,9 @@ export default function Users() {
     tenantId: 0,
     // opcional (admin): já colocar o novo usuário em um grupo existente
     groupId: 0,
+    // ✅ card informativo persistente desse usuário
+    announcementEnabled: false,
+    announcementBody: "",
   });
 
   const resetForm = () => {
@@ -361,11 +366,13 @@ export default function Users() {
       return;
     }
 
-    // Admin tenant: só nome/email
+    // Admin tenant: nome/email + card informativo
     updateUser.mutate({
       id: editingUser.id,
       name: formData.name,
       email: formData.email || undefined,
+      announcementEnabled: formData.announcementEnabled,
+      announcementBody: formData.announcementBody || null,
     });
   };
 
@@ -384,6 +391,8 @@ export default function Users() {
       role: (user.role || "user") as any,
       tenantId: user.tenantId || 0,
       groupId: 0,
+      announcementEnabled: Boolean(user.announcementEnabled),
+      announcementBody: user.announcementBody || "",
     });
   };
 
@@ -874,6 +883,30 @@ export default function Users() {
                   placeholder="email@exemplo.com"
                 />
               </div>
+
+              {!isManager && (
+                <div className="space-y-3 rounded-lg border-2 p-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="mb-0">Card informativo persistente</Label>
+                    <Switch
+                      checked={formData.announcementEnabled}
+                      onCheckedChange={(checked) =>
+                        setFormData({ ...formData, announcementEnabled: checked })
+                      }
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Mensagem fixa mostrada só pra esse usuário na tela de notificações
+                    (ex: "Troque o óleo em 12/07/2027"). Não some sozinha — fica até você
+                    desligar ou apagar o texto.
+                  </p>
+                  <SimpleRichTextEditor
+                    value={formData.announcementBody}
+                    onChange={(next) => setFormData({ ...formData, announcementBody: next })}
+                    placeholder='Ex: Seu carro tem que trocar o óleo dia 12/07/2027'
+                  />
+                </div>
+              )}
 
               {isManager && (
                 <div className="space-y-2">
