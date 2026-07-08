@@ -132,6 +132,12 @@ export const users = pgTable(
 
     role: roleEnum("role").notNull().default("user"),
 
+    // ✅ Card informativo persistente e personalizado por usuário final
+    // (ex: "Troque o óleo em 12/07/2027"), editado pelo admin na tela de
+    // Usuários e exibido só pra esse usuário específico.
+    announcementEnabled: boolean("announcementEnabled").notNull().default(false),
+    announcementBody: text("announcementBody"),
+
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().notNull(),
     lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
