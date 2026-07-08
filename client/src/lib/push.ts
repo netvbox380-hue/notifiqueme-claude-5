@@ -60,6 +60,17 @@ async function ensureServiceWorker() {
   return reg;
 }
 
+// ✅ Evento leve pra avisar qualquer parte da UI (banners, etc.) que o status
+// do push pode ter mudado — evita que cada componente tenha que fazer
+// polling sozinho pra saber quando o usuário ativou/desativou o push.
+const PUSH_STATUS_EVENT = "notifique-me:push-status-changed";
+
+function notifyPushStatusChanged() {
+  try {
+    window.dispatchEvent(new Event(PUSH_STATUS_EVENT));
+  } catch {}
+}
+
 export async function getOrCreatePushSubscription(publicKey: string) {
   if (!("PushManager" in window)) {
     throw new Error("Push não suportado neste navegador");
@@ -73,6 +84,7 @@ export async function getOrCreatePushSubscription(publicKey: string) {
     if (Notification.permission === "default") {
       const perm = await Notification.requestPermission();
       if (perm !== "granted") {
+        notifyPushStatusChanged();
         throw new Error("Permissão de notificação não concedida.");
       }
     }
@@ -81,7 +93,10 @@ export async function getOrCreatePushSubscription(publicKey: string) {
   const reg = await ensureServiceWorker();
 
   const existing = await reg.pushManager.getSubscription();
-  if (existing) return existing;
+  if (existing) {
+    notifyPushStatusChanged();
+    return existing;
+  }
 
   if (!publicKey) {
     throw new Error("VAPID public key ausente");
@@ -92,6 +107,7 @@ export async function getOrCreatePushSubscription(publicKey: string) {
     applicationServerKey: urlBase64ToUint8Array(publicKey),
   });
 
+  notifyPushStatusChanged();
   return sub;
 }
 
@@ -110,6 +126,8 @@ export async function unsubscribePush() {
   if (sub) {
     await sub.unsubscribe();
   }
+
+  notifyPushStatusChanged();
 }
 
 // ✅ Status "de leitura" do push para uso em UI (banners, avisos etc.).
@@ -130,7 +148,7 @@ export function usePushStatus(): PushStatus {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
+    const check = async () => {
       const ua = navigator.userAgent.toLowerCase();
       const isIos = /iphone|ipad|ipod/.test(ua);
 
@@ -162,10 +180,24 @@ export function usePushStatus(): PushStatus {
       } catch {
         if (!cancelled) setStatus("not-subscribed");
       }
-    })();
+    };
+
+    void check();
+
+    // ✅ Reavalia quando alguém (ex: InstallAppButton) ativa/desativa o push,
+    // e quando a aba volta a ficar visível (cobre reativação feita direto
+    // nas configurações do navegador, fora do fluxo do app).
+    const onVisibility = () => {
+      if (!document.hidden) void check();
+    };
+
+    window.addEventListener(PUSH_STATUS_EVENT, check);
+    document.addEventListener("visibilitychange", onVisibility);
 
     return () => {
       cancelled = true;
+      window.removeEventListener(PUSH_STATUS_EVENT, check);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
 
