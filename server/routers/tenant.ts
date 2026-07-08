@@ -102,6 +102,33 @@ getPlanLimits: protectedProcedure
   }),
 
   /**
+   * ✅ Usuário comum: lê o próprio card informativo persistente (se ativo).
+   * Personalizado por usuário — editado pelo admin em tenant.updateUser.
+   */
+  myAnnouncement: protectedProcedure.query(async ({ ctx }) => {
+    const db = await getDb();
+    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Banco de dados não disponível" });
+
+    if (!ctx.user?.id) throw new TRPCError({ code: "UNAUTHORIZED" });
+
+    const rows = await db
+      .select({
+        announcementEnabled: users.announcementEnabled,
+        announcementBody: users.announcementBody,
+      })
+      .from(users)
+      .where(eq(users.id, ctx.user.id))
+      .limit(1);
+
+    const row = rows[0];
+
+    return {
+      enabled: Boolean(row?.announcementEnabled),
+      body: row?.announcementBody || null,
+    };
+  }),
+
+  /**
    * Obter informações de assinatura do usuário atual
    */
   getSubscription: protectedProcedure.query(async ({ ctx }) => {
@@ -767,6 +794,9 @@ getPlanLimits: protectedProcedure
         id: z.number(),
         name: z.string().min(1).max(255).optional(),
         email: z.string().email().optional(),
+        // ✅ Card informativo persistente e personalizado desse usuário
+        announcementEnabled: z.boolean().optional(),
+        announcementBody: z.string().max(2000).optional().nullable(),
       })
     )
     .mutation(async ({ ctx, input }) => {
@@ -786,6 +816,8 @@ getPlanLimits: protectedProcedure
       const patch: any = { updatedAt: new Date() };
       if (input.name !== undefined) patch.name = input.name;
       if (input.email !== undefined) patch.email = input.email.trim().toLowerCase();
+      if (input.announcementEnabled !== undefined) patch.announcementEnabled = input.announcementEnabled;
+      if (input.announcementBody !== undefined) patch.announcementBody = input.announcementBody?.trim() || null;
 
       const updated = await db.update(users).set(patch).where(and(eq(users.id, input.id), eq(users.tenantId, tenantId), eq(users.role, "user"))).returning();
       return { success: true, user: updated[0] };
