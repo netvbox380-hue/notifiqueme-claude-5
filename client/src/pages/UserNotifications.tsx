@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import InstallAppButton from "@/components/InstallAppButton";
 import PushActivationBanner from "@/components/PushActivationBanner";
+import AnnouncementCard from "@/components/AnnouncementCard";
 import { primeNotificationAudio, playNewMessageSound } from "@/lib/notifySound";
 import { linkifyText } from "@/lib/linkify";
 
@@ -157,6 +158,12 @@ export default function UserNotifications() {
   const lastAlertTsRef = useRef<number>(0);
 
   const subscription = trpc.tenant.getSubscription.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
+
+  // ✅ Card informativo persistente e personalizado desse usuário
+  const myAnnouncement = trpc.tenant.myAnnouncement.useQuery(undefined, {
+    staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
 
@@ -693,6 +700,9 @@ export default function UserNotifications() {
         </div>
 
         <PushActivationBanner onAction={() => setPrefsOpen(true)} />
+        {myAnnouncement.data?.enabled && myAnnouncement.data?.body ? (
+          <AnnouncementCard body={myAnnouncement.data.body} />
+        ) : null}
 
         <div className="rounded-2xl border bg-card shadow-sm overflow-hidden">
           <div className="px-4 py-3 border-b bg-muted/40 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
