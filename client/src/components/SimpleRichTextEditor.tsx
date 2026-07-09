@@ -18,15 +18,19 @@ type Props = {
 export default function SimpleRichTextEditor({ value, onChange, placeholder, maxLength = 2000 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
+  // ✅ Defesa extra: nunca deixa `value` undefined/null quebrar o componente,
+  // mesmo que algum outro lugar do código esqueça de inicializar o campo.
+  const safeValue = value ?? "";
+
   const wrapSelection = (marker: string) => {
     const el = textareaRef.current;
     if (!el) return;
 
-    const start = el.selectionStart ?? value.length;
-    const end = el.selectionEnd ?? value.length;
-    const selected = value.slice(start, end) || "texto";
+    const start = el.selectionStart ?? safeValue.length;
+    const end = el.selectionEnd ?? safeValue.length;
+    const selected = safeValue.slice(start, end) || "texto";
 
-    const next = value.slice(0, start) + marker + selected + marker + value.slice(end);
+    const next = safeValue.slice(0, start) + marker + selected + marker + safeValue.slice(end);
     onChange(next.slice(0, maxLength));
 
     // Restaura o foco e seleciona o trecho recém-formatado
@@ -60,27 +64,27 @@ export default function SimpleRichTextEditor({ value, onChange, placeholder, max
           Itálico
         </button>
         <span className="ml-auto text-[11px] text-muted-foreground">
-          {value.length}/{maxLength}
+          {safeValue.length}/{maxLength}
         </span>
       </div>
 
       <textarea
         ref={textareaRef}
-        value={value}
+        value={safeValue}
         onChange={(e) => onChange(e.target.value.slice(0, maxLength))}
         placeholder={placeholder}
         rows={4}
         className="w-full rounded-lg border-2 bg-background p-3 text-sm resize-y focus:outline-none focus:ring-2 focus:ring-ring"
       />
 
-      {value.trim() ? (
+      {safeValue.trim() ? (
         <div className="space-y-1">
           <div className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
             Prévia (como o usuário vai ver)
           </div>
           <div
             className="rounded-lg border bg-muted/30 p-3 text-sm leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: renderSimpleRichText(value) }}
+            dangerouslySetInnerHTML={{ __html: renderSimpleRichText(safeValue) }}
           />
         </div>
       ) : null}
