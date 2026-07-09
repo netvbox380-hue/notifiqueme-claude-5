@@ -1025,45 +1025,6 @@ export default function UserNotifications() {
                 <InstallAppButton />
               </div>
 
-              <div className="rounded-xl border p-3 space-y-2">
-                <div className="text-sm font-medium">Canal da empresa</div>
-                <div className="text-xs text-muted-foreground">
-                  Logo e WhatsApp agora ficam integrados à inbox do usuário final.
-                </div>
-
-                <div className="flex items-center gap-3">
-                  {brandLogoUrl ? (
-                    <img
-                      src={brandLogoUrl}
-                      alt={brandName}
-                      className="h-12 w-12 rounded-xl border object-cover bg-background"
-                      onError={(e) => {
-                        (e.currentTarget as HTMLImageElement).style.display = "none";
-                      }}
-                    />
-                  ) : null}
-
-                  <div className="min-w-0">
-                    <div className="font-medium truncate">{brandName}</div>
-
-                    {supportUrl ? (
-                      <a
-                        href={supportUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm text-emerald-400 hover:underline"
-                      >
-                        {supportPhone || "WhatsApp"}
-                      </a>
-                    ) : (
-                      <div className="text-xs text-muted-foreground">
-                        Sem WhatsApp cadastrado.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               <div className="space-y-2">
                 <label className="flex items-center justify-between gap-3 rounded-xl border p-3">
                   <div>
