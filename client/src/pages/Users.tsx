@@ -137,6 +137,8 @@ export default function Users() {
       role: isManager ? (isReseller ? "admin" as Role : "admin" as Role) : "user" as Role,
       tenantId: 0,
       groupId: 0,
+      announcementEnabled: false,
+      announcementBody: "",
     });
   };
 
