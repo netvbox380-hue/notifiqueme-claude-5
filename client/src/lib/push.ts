@@ -172,9 +172,30 @@ export function usePushStatus(): PushStatus {
       }
 
       try {
-        const reg =
-          (await navigator.serviceWorker.getRegistration("/")) ||
-          (await navigator.serviceWorker.getRegistration());
+        // ✅ serviceWorker.ready espera de verdade o SW assumir o controle da
+        // página — evita o "falso negativo" de checar rápido demais logo após
+        // um reload, antes do SW terminar de ativar (getRegistration() sozinho
+        // pode retornar undefined nesse instante, mesmo com push já ativo).
+        // Timeout de segurança: se o SW nunca ativar (falha de instalação),
+        // não trava pra sempre em "checking".
+        let reg: ServiceWorkerRegistration | null = null;
+
+        try {
+          reg = await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 4000)),
+          ]);
+        } catch {
+          reg = null;
+        }
+
+        if (!reg) {
+          reg =
+            (await navigator.serviceWorker.getRegistration("/")) ||
+            (await navigator.serviceWorker.getRegistration()) ||
+            null;
+        }
+
         const sub = reg ? await reg.pushManager.getSubscription() : null;
         if (!cancelled) setStatus(sub ? "active" : "not-subscribed");
       } catch {
